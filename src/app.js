@@ -888,6 +888,10 @@ function loadVideoFile(file) {
   loadVideoUrl(url, file.name, false);
 }
 
+function baseName(fileName) {
+  return fileName.replace(/\.[^/.]+$/, "");
+}
+
 function loadVideoUrl(url, label, isPreview = false) {
   state.previewVideoActive = isPreview;
   els.video.pause();
@@ -960,7 +964,10 @@ function exportScript() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = state.fileName.endsWith(".funscript") ? state.fileName : `${state.fileName}.funscript`;
+  const exportName = state.currentVideoFile
+    ? `${baseName(state.currentVideoFile.name)}.funscript`
+    : state.fileName.endsWith(".funscript") ? state.fileName : `${state.fileName}.funscript`;
+  a.download = exportName;
   document.body.appendChild(a);
   a.click();
   a.remove();

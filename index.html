@@ -76,6 +76,34 @@
               </div>
 
               <canvas id="timeline" width="1200" height="420"></canvas>
+
+              <div class="point-panel">
+                <div class="panel-heading">
+                  <h2>选中时间点</h2>
+                  <div id="emptySelection" class="empty-state">点击时间轴上的点进行编辑</div>
+                </div>
+                <div id="pointEditor" class="point-editor hidden">
+                  <label>
+                    时间 at(ms)
+                    <input id="atInput" type="number" min="0" step="1" />
+                  </label>
+                  <label>
+                    标准 pos
+                    <input id="posInput" type="number" min="0" max="100" step="1" />
+                  </label>
+                  <div class="commands-block">
+                    <div class="commands-title">
+                      <span>multiAction commands</span>
+                      <button id="addCommandBtn" type="button">添加动作</button>
+                    </div>
+                    <div id="commandsList" class="commands-list"></div>
+                  </div>
+                  <div class="editor-actions">
+                    <button id="savePointBtn" type="button">应用修改</button>
+                    <button id="deletePointBtn" type="button" class="danger">删除时间点</button>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section class="quick-recorder">
@@ -119,43 +147,19 @@
               </div>
             </section>
           </div>
-        </section>
 
-        <aside class="inspector">
-          <div class="panel">
-            <h2>选中时间点</h2>
-            <div id="emptySelection" class="empty-state">点击时间轴上的点进行编辑</div>
-            <div id="pointEditor" class="point-editor hidden">
-              <label>
-                时间 at(ms)
-                <input id="atInput" type="number" min="0" step="1" />
-              </label>
-              <label>
-                标准 pos
-                <input id="posInput" type="number" min="0" max="100" step="1" />
-              </label>
-              <div class="commands-title">
-                <span>multiAction commands</span>
-                <button id="addCommandBtn" type="button">添加动作</button>
-              </div>
-              <div id="commandsList" class="commands-list"></div>
-              <div class="editor-actions">
-                <button id="savePointBtn" type="button">应用修改</button>
-                <button id="deletePointBtn" type="button" class="danger">删除时间点</button>
-              </div>
+          <div class="bottom-panels">
+            <div class="panel">
+              <h2>校验</h2>
+              <div id="validationList" class="validation-list"></div>
+            </div>
+
+            <div class="panel">
+              <h2>当前 JSON</h2>
+              <pre id="jsonPreview">{}</pre>
             </div>
           </div>
-
-          <div class="panel">
-            <h2>校验</h2>
-            <div id="validationList" class="validation-list"></div>
-          </div>
-
-          <div class="panel">
-            <h2>当前 JSON</h2>
-            <pre id="jsonPreview">{}</pre>
-          </div>
-        </aside>
+        </section>
       </main>
     </div>
 
