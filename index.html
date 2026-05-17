@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi Funscript Editor</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">MF</div>
+          <div>
+            <h1>Multi Funscript Editor</h1>
+            <p>Standard actions + multiAction timeline</p>
+          </div>
+        </div>
+        <div class="toolbar">
+          <label class="file-button">
+            视频
+            <input id="videoInput" type="file" accept="video/*" />
+          </label>
+          <label class="file-button">
+            脚本
+            <input id="scriptInput" type="file" accept=".funscript,application/json" />
+          </label>
+          <button id="newScriptBtn" type="button">新建</button>
+          <button id="exportBtn" type="button">导出</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="stage">
+          <div class="video-wrap">
+            <video id="video" controls></video>
+            <div id="dropHint" class="drop-hint">打开视频和 .funscript 后开始编辑</div>
+          </div>
+
+          <div class="transport">
+            <button id="playBtn" type="button">播放/暂停</button>
+            <button id="addPointBtn" type="button">添加当前点</button>
+            <button id="syncFromActionsBtn" type="button">actions -> multiAction</button>
+            <button id="syncFromMultiBtn" type="button">multiAction -> actions</button>
+            <div class="time-readout">
+              <span id="currentTime">00:00.000</span>
+              <span>/</span>
+              <span id="durationTime">00:00.000</span>
+            </div>
+          </div>
+
+          <div class="timeline-header">
+            <div>
+              <h2>时间轴</h2>
+              <p id="scriptSummary">尚未加载脚本</p>
+            </div>
+            <div class="mode-switch">
+              <button class="active" data-mode="both" type="button">双轨</button>
+              <button data-mode="actions" type="button">actions</button>
+              <button data-mode="multi" type="button">multiAction</button>
+            </div>
+          </div>
+
+          <canvas id="timeline" width="1200" height="420"></canvas>
+        </section>
+
+        <aside class="inspector">
+          <div class="panel">
+            <h2>选中时间点</h2>
+            <div id="emptySelection" class="empty-state">点击时间轴上的点进行编辑</div>
+            <div id="pointEditor" class="point-editor hidden">
+              <label>
+                时间 at(ms)
+                <input id="atInput" type="number" min="0" step="1" />
+              </label>
+              <label>
+                标准 pos
+                <input id="posInput" type="number" min="0" max="100" step="1" />
+              </label>
+              <div class="commands-title">
+                <span>multiAction commands</span>
+                <button id="addCommandBtn" type="button">添加动作</button>
+              </div>
+              <div id="commandsList" class="commands-list"></div>
+              <div class="editor-actions">
+                <button id="savePointBtn" type="button">应用修改</button>
+                <button id="deletePointBtn" type="button" class="danger">删除时间点</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>校验</h2>
+            <div id="validationList" class="validation-list"></div>
+          </div>
+
+          <div class="panel">
+            <h2>当前 JSON</h2>
+            <pre id="jsonPreview">{}</pre>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,631 @@
+const ACTION_TYPES = ["SS", "ZD", "JX", "XZ", "JR", "DT", "PS", "YL", "empty"];
+const ACTION_LABELS = {
+  SS: "SS 伸缩",
+  ZD: "ZD 震动",
+  JX: "JX 夹吸",
+  XZ: "XZ 旋转",
+  JR: "JR 加热",
+  DT: "DT 点头",
+  PS: "PS 喷水",
+  YL: "YL 音量",
+  empty: "empty 空指令"
+};
+
+const els = {
+  videoInput: document.querySelector("#videoInput"),
+  scriptInput: document.querySelector("#scriptInput"),
+  video: document.querySelector("#video"),
+  dropHint: document.querySelector("#dropHint"),
+  playBtn: document.querySelector("#playBtn"),
+  addPointBtn: document.querySelector("#addPointBtn"),
+  newScriptBtn: document.querySelector("#newScriptBtn"),
+  exportBtn: document.querySelector("#exportBtn"),
+  syncFromActionsBtn: document.querySelector("#syncFromActionsBtn"),
+  syncFromMultiBtn: document.querySelector("#syncFromMultiBtn"),
+  currentTime: document.querySelector("#currentTime"),
+  durationTime: document.querySelector("#durationTime"),
+  scriptSummary: document.querySelector("#scriptSummary"),
+  timeline: document.querySelector("#timeline"),
+  modeButtons: document.querySelectorAll(".mode-switch button"),
+  emptySelection: document.querySelector("#emptySelection"),
+  pointEditor: document.querySelector("#pointEditor"),
+  atInput: document.querySelector("#atInput"),
+  posInput: document.querySelector("#posInput"),
+  commandsList: document.querySelector("#commandsList"),
+  addCommandBtn: document.querySelector("#addCommandBtn"),
+  savePointBtn: document.querySelector("#savePointBtn"),
+  deletePointBtn: document.querySelector("#deletePointBtn"),
+  validationList: document.querySelector("#validationList"),
+  jsonPreview: document.querySelector("#jsonPreview")
+};
+
+const ctx = els.timeline.getContext("2d");
+
+const state = {
+  fileName: "untitled.funscript",
+  mode: "both",
+  selectedAt: null,
+  script: createEmptyScript(),
+  durationMs: 600000
+};
+
+function createEmptyScript() {
+  return {
+    version: "1.0",
+    inverted: false,
+    range: 100,
+    actions: [],
+    metadata: {
+      title: "Untitled",
+      creator: "Multi Funscript Editor",
+      tags: ["multiAction"]
+    },
+    multiAction: {
+      version: "2.0",
+      timeline: []
+    }
+  };
+}
+
+function normalizeScript(input) {
+  const script = structuredClone(input || {});
+  script.version = script.version || "1.0";
+  script.inverted = Boolean(script.inverted);
+  script.range = Number.isFinite(Number(script.range)) ? Number(script.range) : 100;
+  script.actions = Array.isArray(script.actions) ? script.actions : [];
+  script.actions = script.actions
+    .map((point) => ({
+      at: clampInt(point.at, 0, Number.MAX_SAFE_INTEGER),
+      pos: clampInt(point.pos, 0, 100)
+    }))
+    .sort((a, b) => a.at - b.at);
+  script.metadata = script.metadata && typeof script.metadata === "object" ? script.metadata : {};
+  script.multiAction = script.multiAction && typeof script.multiAction === "object"
+    ? script.multiAction
+    : { version: "2.0", timeline: [] };
+  script.multiAction.version = script.multiAction.version || "2.0";
+  script.multiAction.timeline = Array.isArray(script.multiAction.timeline)
+    ? script.multiAction.timeline
+    : [];
+  script.multiAction.timeline = script.multiAction.timeline
+    .map((point) => ({
+      at: clampInt(point.at, 0, Number.MAX_SAFE_INTEGER),
+      commands: normalizeCommands(point.commands)
+    }))
+    .sort((a, b) => a.at - b.at);
+  return script;
+}
+
+function normalizeCommands(commands) {
+  if (!Array.isArray(commands) || commands.length === 0) {
+    return [{ action: "empty", qty: "0" }];
+  }
+  return commands.map((cmd) => {
+    const action = ACTION_TYPES.includes(cmd.action) ? cmd.action : "empty";
+    const qty = clampInt(cmd.qty, 0, 10);
+    return { action, qty: String(qty) };
+  });
+}
+
+function clampInt(value, min, max) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function formatTime(ms) {
+  const totalMs = Math.max(0, Math.floor(ms || 0));
+  const minutes = Math.floor(totalMs / 60000);
+  const seconds = Math.floor((totalMs % 60000) / 1000);
+  const millis = totalMs % 1000;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+}
+
+function currentVideoMs() {
+  return Math.floor((els.video.currentTime || 0) * 1000);
+}
+
+function getScriptDuration() {
+  const actionMax = state.script.actions.at(-1)?.at || 0;
+  const multiMax = state.script.multiAction.timeline.at(-1)?.at || 0;
+  const videoMax = Number.isFinite(els.video.duration) ? Math.floor(els.video.duration * 1000) : 0;
+  return Math.max(actionMax, multiMax, videoMax, 1000);
+}
+
+function findAction(at) {
+  return state.script.actions.find((point) => point.at === at);
+}
+
+function findMultiPoint(at) {
+  return state.script.multiAction.timeline.find((point) => point.at === at);
+}
+
+function collectTimes() {
+  return Array.from(new Set([
+    ...state.script.actions.map((point) => point.at),
+    ...state.script.multiAction.timeline.map((point) => point.at)
+  ])).sort((a, b) => a - b);
+}
+
+function ensurePoint(at) {
+  const time = clampInt(at, 0, Number.MAX_SAFE_INTEGER);
+  let action = findAction(time);
+  if (!action) {
+    action = { at: time, pos: 0 };
+    state.script.actions.push(action);
+  }
+  let multi = findMultiPoint(time);
+  if (!multi) {
+    multi = { at: time, commands: [{ action: "SS", qty: String(Math.round(action.pos / 10)) }] };
+    state.script.multiAction.timeline.push(multi);
+  }
+  sortScript();
+  state.selectedAt = time;
+}
+
+function sortScript() {
+  state.script.actions.sort((a, b) => a.at - b.at);
+  state.script.multiAction.timeline.sort((a, b) => a.at - b.at);
+}
+
+function syncMultiFromActions() {
+  state.script.multiAction.timeline = state.script.actions.map((point) => ({
+    at: point.at,
+    commands: [{ action: "SS", qty: String(Math.round(point.pos / 10)) }]
+  }));
+  if (!state.script.multiAction.version) state.script.multiAction.version = "2.0";
+  renderAll();
+}
+
+function syncActionsFromMulti() {
+  state.script.actions = state.script.multiAction.timeline
+    .map((point) => {
+      const ss = point.commands.find((cmd) => cmd.action === "SS");
+      if (!ss) return null;
+      return { at: point.at, pos: clampInt(ss.qty, 0, 10) * 10 };
+    })
+    .filter(Boolean);
+  sortScript();
+  renderAll();
+}
+
+function validateScript() {
+  const messages = [];
+  const actions = state.script.actions;
+  const timeline = state.script.multiAction.timeline;
+  pushOrderMessages(messages, "actions", actions);
+  pushOrderMessages(messages, "multiAction.timeline", timeline);
+
+  for (const point of actions) {
+    if (point.pos < 0 || point.pos > 100) {
+      messages.push({ type: "error", text: `actions at ${point.at} 的 pos 超出 0-100` });
+    }
+  }
+
+  for (const point of timeline) {
+    for (const cmd of point.commands) {
+      const qty = Number(cmd.qty);
+      if (!ACTION_TYPES.includes(cmd.action)) {
+        messages.push({ type: "error", text: `multiAction at ${point.at} 存在未知动作 ${cmd.action}` });
+      }
+      if (!Number.isInteger(qty) || qty < 0 || qty > 10) {
+        messages.push({ type: "error", text: `multiAction at ${point.at} 的 ${cmd.action} qty 需为 0-10` });
+      }
+      if (typeof cmd.qty !== "string") {
+        messages.push({ type: "warn", text: `multiAction at ${point.at} 的 ${cmd.action} qty 建议保存为字符串` });
+      }
+    }
+  }
+
+  if (actions.length && timeline.length && actions.at(-1).at !== timeline.at(-1).at) {
+    messages.push({ type: "warn", text: "actions 与 multiAction.timeline 的结束时间不一致" });
+  }
+
+  if (messages.length === 0) {
+    messages.push({ type: "ok", text: "脚本结构有效" });
+  }
+  return messages;
+}
+
+function pushOrderMessages(messages, name, points) {
+  const seen = new Set();
+  let previous = -1;
+  for (const point of points) {
+    if (point.at < previous) {
+      messages.push({ type: "error", text: `${name} 未按 at 升序排列` });
+      break;
+    }
+    if (seen.has(point.at)) {
+      messages.push({ type: "warn", text: `${name} 存在重复时间点 ${point.at}` });
+    }
+    seen.add(point.at);
+    previous = point.at;
+  }
+}
+
+function drawTimeline() {
+  const canvas = els.timeline;
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(rect.width * ratio);
+  canvas.height = Math.floor(rect.height * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  const width = rect.width;
+  const height = rect.height;
+  const pad = { left: 54, top: 22, right: 22, bottom: 34 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const duration = state.durationMs;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#fbfcfe";
+  ctx.fillRect(0, 0, width, height);
+
+  drawGrid(width, height, pad, plotWidth, plotHeight, duration);
+
+  if (state.mode !== "multi") {
+    drawActionsLine(pad, plotWidth, plotHeight, duration);
+  }
+
+  if (state.mode !== "actions") {
+    drawMultiTracks(pad, plotWidth, plotHeight, duration);
+  }
+
+  drawSelectedPoints(pad, plotWidth, plotHeight, duration);
+  drawPlayhead(pad, plotWidth, height, duration);
+}
+
+function drawGrid(width, height, pad, plotWidth, plotHeight, duration) {
+  ctx.strokeStyle = "#e1e7ee";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#667382";
+  ctx.font = "12px ui-sans-serif, system-ui";
+
+  const steps = 10;
+  for (let i = 0; i <= steps; i += 1) {
+    const x = pad.left + (plotWidth * i) / steps;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, height - pad.bottom);
+    ctx.stroke();
+    ctx.fillText(formatTime((duration * i) / steps), x - 20, height - 12);
+  }
+
+  ctx.fillText("actions", 8, pad.top + 42);
+  ctx.fillText("multi", 8, pad.top + plotHeight * 0.54);
+}
+
+function drawActionsLine(pad, plotWidth, plotHeight, duration) {
+  const top = pad.top;
+  const height = plotHeight * (state.mode === "both" ? 0.42 : 0.9);
+  const points = state.script.actions;
+  if (!points.length) return;
+
+  ctx.strokeStyle = "#0f8b8d";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const x = pad.left + (point.at / duration) * plotWidth;
+    const y = top + height - (point.pos / 100) * height;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  for (const point of points) {
+    const x = pad.left + (point.at / duration) * plotWidth;
+    const y = top + height - (point.pos / 100) * height;
+    ctx.fillStyle = point.at === state.selectedAt ? "#d95d39" : "#0f8b8d";
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawMultiTracks(pad, plotWidth, plotHeight, duration) {
+  const trackTypes = ACTION_TYPES.filter((action) => action !== "empty");
+  const top = state.mode === "both" ? pad.top + plotHeight * 0.48 : pad.top;
+  const height = state.mode === "both" ? plotHeight * 0.48 : plotHeight * 0.9;
+  const rowHeight = height / trackTypes.length;
+
+  ctx.font = "11px ui-sans-serif, system-ui";
+  for (let i = 0; i < trackTypes.length; i += 1) {
+    const action = trackTypes[i];
+    const y = top + rowHeight * i;
+    ctx.fillStyle = "#6a7581";
+    ctx.fillText(action, 12, y + rowHeight * 0.65);
+    ctx.strokeStyle = "#e1e7ee";
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y + rowHeight);
+    ctx.lineTo(pad.left + plotWidth, y + rowHeight);
+    ctx.stroke();
+  }
+
+  for (const point of state.script.multiAction.timeline) {
+    const x = pad.left + (point.at / duration) * plotWidth;
+    for (const cmd of point.commands) {
+      if (cmd.action === "empty") {
+        ctx.fillStyle = point.at === state.selectedAt ? "#d95d39" : "#808a95";
+        ctx.fillRect(x - 4, top - 4, 8, 8);
+        continue;
+      }
+      const index = trackTypes.indexOf(cmd.action);
+      if (index < 0) continue;
+      const qty = clampInt(cmd.qty, 0, 10);
+      const rowTop = top + rowHeight * index;
+      const barHeight = Math.max(3, (qty / 10) * (rowHeight - 8));
+      ctx.fillStyle = point.at === state.selectedAt ? "#d95d39" : "#356fbd";
+      ctx.fillRect(x - 4, rowTop + rowHeight - barHeight - 3, 8, barHeight);
+    }
+  }
+}
+
+function drawSelectedPoints(pad, plotWidth, plotHeight, duration) {
+  if (state.selectedAt == null) return;
+  const x = pad.left + (state.selectedAt / duration) * plotWidth;
+  ctx.strokeStyle = "#d95d39";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, pad.top);
+  ctx.lineTo(x, pad.top + plotHeight);
+  ctx.stroke();
+}
+
+function drawPlayhead(pad, plotWidth, height, duration) {
+  const x = pad.left + (currentVideoMs() / duration) * plotWidth;
+  ctx.strokeStyle = "#17202a";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, 0);
+  ctx.lineTo(x, height - pad.bottom);
+  ctx.stroke();
+}
+
+function renderEditor() {
+  if (state.selectedAt == null) {
+    els.emptySelection.classList.remove("hidden");
+    els.pointEditor.classList.add("hidden");
+    return;
+  }
+  const action = findAction(state.selectedAt) || { at: state.selectedAt, pos: 0 };
+  const multi = findMultiPoint(state.selectedAt) || { at: state.selectedAt, commands: [{ action: "empty", qty: "0" }] };
+  els.emptySelection.classList.add("hidden");
+  els.pointEditor.classList.remove("hidden");
+  els.atInput.value = String(state.selectedAt);
+  els.posInput.value = String(action.pos);
+  els.commandsList.innerHTML = "";
+  multi.commands.forEach((cmd, index) => {
+    els.commandsList.appendChild(createCommandRow(cmd, index));
+  });
+}
+
+function createCommandRow(cmd, index) {
+  const row = document.createElement("div");
+  row.className = "command-row";
+  row.dataset.index = String(index);
+
+  const select = document.createElement("select");
+  for (const action of ACTION_TYPES) {
+    const option = document.createElement("option");
+    option.value = action;
+    option.textContent = ACTION_LABELS[action];
+    option.selected = action === cmd.action;
+    select.appendChild(option);
+  }
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.max = "10";
+  input.step = "1";
+  input.value = String(clampInt(cmd.qty, 0, 10));
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.title = "删除动作";
+  remove.addEventListener("click", () => {
+    row.remove();
+  });
+
+  row.append(select, input, remove);
+  return row;
+}
+
+function readEditorCommands() {
+  const rows = Array.from(els.commandsList.querySelectorAll(".command-row"));
+  if (!rows.length) return [{ action: "empty", qty: "0" }];
+  return rows.map((row) => {
+    const [select, input] = row.querySelectorAll("select, input");
+    return {
+      action: select.value,
+      qty: String(clampInt(input.value, 0, 10))
+    };
+  });
+}
+
+function saveSelectedPoint() {
+  if (state.selectedAt == null) return;
+  const oldAt = state.selectedAt;
+  const nextAt = clampInt(els.atInput.value, 0, Number.MAX_SAFE_INTEGER);
+  const pos = clampInt(els.posInput.value, 0, 100);
+  const commands = normalizeCommands(readEditorCommands());
+
+  state.script.actions = state.script.actions.filter((point) => point.at !== oldAt && point.at !== nextAt);
+  state.script.actions.push({ at: nextAt, pos });
+
+  state.script.multiAction.timeline = state.script.multiAction.timeline
+    .filter((point) => point.at !== oldAt && point.at !== nextAt);
+  state.script.multiAction.timeline.push({ at: nextAt, commands });
+
+  state.selectedAt = nextAt;
+  sortScript();
+  renderAll();
+}
+
+function deleteSelectedPoint() {
+  if (state.selectedAt == null) return;
+  const at = state.selectedAt;
+  state.script.actions = state.script.actions.filter((point) => point.at !== at);
+  state.script.multiAction.timeline = state.script.multiAction.timeline.filter((point) => point.at !== at);
+  state.selectedAt = null;
+  renderAll();
+}
+
+function renderValidation() {
+  els.validationList.innerHTML = "";
+  for (const message of validateScript()) {
+    const item = document.createElement("div");
+    item.className = `validation-item ${message.type === "ok" ? "" : message.type}`;
+    item.textContent = message.text;
+    els.validationList.appendChild(item);
+  }
+}
+
+function renderSummary() {
+  const actionCount = state.script.actions.length;
+  const multiCount = state.script.multiAction.timeline.length;
+  const used = new Set();
+  for (const point of state.script.multiAction.timeline) {
+    for (const cmd of point.commands) used.add(cmd.action);
+  }
+  els.scriptSummary.textContent = `${state.fileName} · actions ${actionCount} · multiAction ${multiCount} · ${formatTime(state.durationMs)} · ${Array.from(used).join("/") || "无动作"}`;
+}
+
+function renderPreview() {
+  if (state.selectedAt == null) {
+    els.jsonPreview.textContent = JSON.stringify({
+      actions: state.script.actions.length,
+      multiAction: state.script.multiAction.timeline.length
+    }, null, 2);
+    return;
+  }
+  els.jsonPreview.textContent = JSON.stringify({
+    action: findAction(state.selectedAt) || null,
+    multiAction: findMultiPoint(state.selectedAt) || null
+  }, null, 2);
+}
+
+function renderAll() {
+  state.durationMs = getScriptDuration();
+  els.currentTime.textContent = formatTime(currentVideoMs());
+  els.durationTime.textContent = formatTime(state.durationMs);
+  renderSummary();
+  renderEditor();
+  renderValidation();
+  renderPreview();
+  drawTimeline();
+}
+
+async function loadScriptFile(file) {
+  const text = await file.text();
+  const parsed = JSON.parse(text);
+  state.fileName = file.name;
+  state.script = normalizeScript(parsed);
+  state.selectedAt = collectTimes()[0] ?? null;
+  renderAll();
+}
+
+function loadVideoFile(file) {
+  const url = URL.createObjectURL(file);
+  els.video.src = url;
+  els.dropHint.classList.add("hidden");
+  els.video.addEventListener("loadedmetadata", renderAll, { once: true });
+}
+
+function exportScript() {
+  sortScript();
+  const output = JSON.stringify(state.script, null, 2);
+  const blob = new Blob([output], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = state.fileName.endsWith(".funscript") ? state.fileName : `${state.fileName}.funscript`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function selectNearestPoint(offsetX) {
+  const rect = els.timeline.getBoundingClientRect();
+  const padLeft = 54;
+  const padRight = 22;
+  const plotWidth = rect.width - padLeft - padRight;
+  const targetAt = ((offsetX - padLeft) / plotWidth) * state.durationMs;
+  const times = collectTimes();
+  if (!times.length) return;
+  let nearest = times[0];
+  let nearestDistance = Math.abs(nearest - targetAt);
+  for (const time of times) {
+    const distance = Math.abs(time - targetAt);
+    if (distance < nearestDistance) {
+      nearest = time;
+      nearestDistance = distance;
+    }
+  }
+  state.selectedAt = nearest;
+  if (nearestDistance > state.durationMs * 0.015) {
+    ensurePoint(clampInt(targetAt, 0, Number.MAX_SAFE_INTEGER));
+  }
+  renderAll();
+}
+
+els.videoInput.addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  if (file) loadVideoFile(file);
+});
+
+els.scriptInput.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    await loadScriptFile(file);
+  } catch (error) {
+    alert(`脚本解析失败：${error.message}`);
+  }
+});
+
+els.newScriptBtn.addEventListener("click", () => {
+  state.fileName = "untitled.funscript";
+  state.script = createEmptyScript();
+  state.selectedAt = null;
+  renderAll();
+});
+
+els.exportBtn.addEventListener("click", exportScript);
+els.playBtn.addEventListener("click", () => {
+  if (els.video.paused) els.video.play();
+  else els.video.pause();
+});
+els.addPointBtn.addEventListener("click", () => {
+  ensurePoint(currentVideoMs());
+  renderAll();
+});
+els.syncFromActionsBtn.addEventListener("click", syncMultiFromActions);
+els.syncFromMultiBtn.addEventListener("click", syncActionsFromMulti);
+els.addCommandBtn.addEventListener("click", () => {
+  els.commandsList.appendChild(createCommandRow({ action: "SS", qty: "5" }, els.commandsList.children.length));
+});
+els.savePointBtn.addEventListener("click", saveSelectedPoint);
+els.deletePointBtn.addEventListener("click", deleteSelectedPoint);
+
+els.modeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.mode = button.dataset.mode;
+    els.modeButtons.forEach((item) => item.classList.toggle("active", item === button));
+    drawTimeline();
+  });
+});
+
+els.timeline.addEventListener("click", (event) => {
+  const rect = els.timeline.getBoundingClientRect();
+  selectNearestPoint(event.clientX - rect.left);
+});
+
+els.video.addEventListener("timeupdate", renderAll);
+els.video.addEventListener("durationchange", renderAll);
+window.addEventListener("resize", drawTimeline);
+
+renderAll();

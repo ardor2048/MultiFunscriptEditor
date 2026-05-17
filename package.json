@@ -1,0 +1,10 @@
+{
+  "name": "multi-funscript-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web editor for standard funscript actions and multiAction device commands.",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "validate": "node scripts/validate-sample.mjs"
+  }
+}
