@@ -18,6 +18,7 @@ const els = {
   dropHint: document.querySelector("#dropHint"),
   videoStatus: document.querySelector("#videoStatus"),
   videoDebug: document.querySelector("#videoDebug"),
+  transcodeBtn: document.querySelector("#transcodeBtn"),
   playBtn: document.querySelector("#playBtn"),
   addPointBtn: document.querySelector("#addPointBtn"),
   newScriptBtn: document.querySelector("#newScriptBtn"),
@@ -68,7 +69,10 @@ const state = {
     lastAt: -Infinity,
     lastValue: null
   },
-  videoObjectUrl: null
+  videoObjectUrl: null,
+  currentVideoFile: null,
+  transcodeObjectUrl: null,
+  transcodeInProgress: false
 };
 
 function createEmptyScript() {
@@ -166,8 +170,16 @@ function hasDecodedVideoFrame() {
 function checkVideoFrameAvailability() {
   if (!els.video.currentSrc) return;
   if (els.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-  if (hasDecodedVideoFrame()) return;
+  if (hasDecodedVideoFrame()) {
+    setTranscodeVisible(false);
+    return;
+  }
+  setTranscodeVisible(Boolean(state.currentVideoFile));
   setVideoStatus("视频已加载但没有解码出画面帧。请换用 H.264/AAC 的 MP4，或用支持该编码的浏览器打开。", "error");
+}
+
+function setTranscodeVisible(visible) {
+  els.transcodeBtn.classList.toggle("hidden", !visible);
 }
 
 function updateVideoDebug(extra = "") {
@@ -830,33 +842,81 @@ async function loadScriptFile(file) {
 }
 
 function loadVideoFile(file) {
+  state.currentVideoFile = file;
   if (state.videoObjectUrl) {
     URL.revokeObjectURL(state.videoObjectUrl);
   }
+  if (state.transcodeObjectUrl) {
+    URL.revokeObjectURL(state.transcodeObjectUrl);
+    state.transcodeObjectUrl = null;
+  }
   const url = URL.createObjectURL(file);
   state.videoObjectUrl = url;
+  setTranscodeVisible(false);
+  loadVideoUrl(url, file.name);
+}
+
+function loadVideoUrl(url, label) {
   els.video.pause();
   els.video.src = url;
   els.video.currentTime = 0;
   els.dropHint.classList.add("hidden");
-  setVideoStatus(`正在加载视频：${file.name}`);
-  updateVideoDebug(`file=${file.name}`);
+  setVideoStatus(`正在加载视频：${label}`);
+  updateVideoDebug(`file=${label}`);
   els.video.load();
   els.video.addEventListener("loadedmetadata", () => {
-    setVideoStatus(`已加载：${file.name}`);
-    updateVideoDebug(`file=${file.name}`);
+    setVideoStatus(`已加载：${label}`);
+    updateVideoDebug(`file=${label}`);
     renderAll();
   }, { once: true });
   els.video.addEventListener("loadeddata", () => {
     if (hasDecodedVideoFrame()) setVideoStatus("");
     else checkVideoFrameAvailability();
-    updateVideoDebug(`file=${file.name}`);
+    updateVideoDebug(`file=${label}`);
     renderAll();
   }, { once: true });
   els.video.addEventListener("canplay", () => {
     checkVideoFrameAvailability();
-    updateVideoDebug(`file=${file.name}`);
+    updateVideoDebug(`file=${label}`);
   }, { once: true });
+}
+
+async function transcodeCurrentVideo() {
+  if (!state.currentVideoFile || state.transcodeInProgress) return;
+  state.transcodeInProgress = true;
+  els.transcodeBtn.disabled = true;
+  els.transcodeBtn.textContent = "转码中...";
+  setVideoStatus("正在转码为 H.264/AAC MP4 预览文件，请稍候");
+  try {
+    const response = await fetch("/api/transcode", {
+      method: "POST",
+      headers: {
+        "Content-Type": state.currentVideoFile.type || "application/octet-stream",
+        "X-Filename": encodeURIComponent(state.currentVideoFile.name)
+      },
+      body: state.currentVideoFile
+    });
+    if (!response.ok) {
+      let detail = "";
+      try {
+        detail = (await response.json()).error || "";
+      } catch {
+        detail = await response.text();
+      }
+      throw new Error(detail || `HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    if (state.transcodeObjectUrl) URL.revokeObjectURL(state.transcodeObjectUrl);
+    state.transcodeObjectUrl = URL.createObjectURL(blob);
+    setTranscodeVisible(false);
+    loadVideoUrl(state.transcodeObjectUrl, `${state.currentVideoFile.name} (H.264 preview)`);
+  } catch (error) {
+    setVideoStatus(`转码失败：${error.message}`, "error");
+  } finally {
+    state.transcodeInProgress = false;
+    els.transcodeBtn.disabled = false;
+    els.transcodeBtn.textContent = "转码预览";
+  }
 }
 
 function exportScript() {
@@ -929,6 +989,7 @@ els.undoBtn.addEventListener("click", undo);
 els.redoBtn.addEventListener("click", redo);
 els.exportBtn.addEventListener("click", exportScript);
 els.playBtn.addEventListener("click", togglePlayback);
+els.transcodeBtn.addEventListener("click", transcodeCurrentVideo);
 els.addPointBtn.addEventListener("click", () => {
   mutate(() => {
     ensurePoint(currentVideoMs());

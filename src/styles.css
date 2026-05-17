@@ -204,11 +204,24 @@ video {
   background: rgba(166, 43, 43, 0.9);
 }
 
+.video-debug-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
 .video-debug {
+  flex: 1;
   margin-top: 6px;
   color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+#transcodeBtn {
+  padding: 5px 9px;
+  white-space: nowrap;
 }
 
 .transport {

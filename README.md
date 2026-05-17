@@ -15,7 +15,8 @@ Multi Funscript Editor is a browser-based editor for standard `.funscript` files
 - Undo and redo editing operations.
 - Warn before leaving with unsaved changes.
 - Validate time ordering, duplicate points, `pos`, `qty`, and unknown commands.
-- Deploy as a static Docker image with Nginx.
+- Optional FFmpeg-backed transcode preview in Docker/server mode.
+- Deploy as a Docker image.
 
 ## Supported File Shape
 
@@ -44,6 +45,8 @@ Multi Funscript Editor is a browser-based editor for standard `.funscript` files
 
 ## Local Run
 
+Static-only mode:
+
 ```bash
 npm run dev
 ```
@@ -55,6 +58,18 @@ http://localhost:5173
 ```
 
 The app is dependency-free for the MVP, so `npm install` is not required.
+
+Server mode with `/api/transcode` support requires FFmpeg on the host:
+
+```bash
+npm run server
+```
+
+Then open:
+
+```text
+http://localhost:8080
+```
 
 ## Shortcuts
 
@@ -96,6 +111,7 @@ Workarounds:
 
 - Open the editor in a browser that supports the video's codec.
 - Convert the video to H.264/AAC MP4 before editing.
+- In Docker/server mode, click `转码预览` when the editor detects `size=0x0`.
 
 ## Docker
 
@@ -108,7 +124,7 @@ docker build -t multi-funscript-editor .
 Run:
 
 ```bash
-docker run --rm -p 8080:80 multi-funscript-editor
+docker run --rm -p 8080:8080 multi-funscript-editor
 ```
 
 Open:
@@ -116,6 +132,8 @@ Open:
 ```text
 http://localhost:8080
 ```
+
+The Docker image includes FFmpeg and serves the app with the built-in Node server, so `转码预览` works without installing FFmpeg on the host.
 
 ## Validation
 

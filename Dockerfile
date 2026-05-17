@@ -1,8 +1,15 @@
-FROM nginx:1.27-alpine
+FROM node:20-alpine
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index.html /usr/share/nginx/html/index.html
-COPY src /usr/share/nginx/html/src
-COPY README.md /usr/share/nginx/html/README.md
+RUN apk add --no-cache ffmpeg
 
-EXPOSE 80
+WORKDIR /app
+COPY index.html package.json README.md ./
+COPY src ./src
+COPY docs ./docs
+COPY scripts ./scripts
+COPY server ./server
+
+ENV PORT=8080
+EXPOSE 8080
+
+CMD ["node", "server/server.mjs"]
