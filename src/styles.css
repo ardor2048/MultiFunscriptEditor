@@ -219,6 +219,19 @@ video {
   font-variant-numeric: tabular-nums;
 }
 
+.auto-transcode {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.auto-transcode input {
+  margin: 0;
+}
+
 #transcodeBtn {
   padding: 5px 9px;
   white-space: nowrap;
