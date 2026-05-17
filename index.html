@@ -62,6 +62,22 @@
           </div>
 
           <div class="editing-grid">
+            <section class="timeline-panel">
+              <div class="timeline-header">
+                <div>
+                  <h2>时间轴</h2>
+                  <p id="scriptSummary">尚未加载脚本</p>
+                </div>
+                <div class="mode-switch">
+                  <button class="active" data-mode="both" type="button">多轨</button>
+                  <button data-mode="actions" type="button">actions</button>
+                  <button data-mode="multi" type="button">multiAction</button>
+                </div>
+              </div>
+
+              <canvas id="timeline" width="1200" height="420"></canvas>
+            </section>
+
             <section class="quick-recorder">
               <div class="quick-recorder-head">
                 <div>
@@ -101,22 +117,6 @@
                 <button data-stamp="75" type="button">75</button>
                 <button data-stamp="100" type="button">100</button>
               </div>
-            </section>
-
-            <section class="timeline-panel">
-              <div class="timeline-header">
-                <div>
-                  <h2>时间轴</h2>
-                  <p id="scriptSummary">尚未加载脚本</p>
-                </div>
-                <div class="mode-switch">
-                  <button class="active" data-mode="both" type="button">多轨</button>
-                  <button data-mode="actions" type="button">actions</button>
-                  <button data-mode="multi" type="button">multiAction</button>
-                </div>
-              </div>
-
-              <canvas id="timeline" width="1200" height="420"></canvas>
             </section>
           </div>
         </section>

@@ -250,7 +250,7 @@ video {
 
 .editing-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 330px);
   gap: 12px;
   align-items: stretch;
   margin-top: 12px;
