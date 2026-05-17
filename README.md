@@ -85,9 +85,10 @@ http://localhost:8080
 Use the quick recording panel to add points while the video plays:
 
 1. Choose the target track, such as `actions pos`, `SS`, or `ZD`.
-2. Click or drag on the recording pad. Higher positions create higher values.
-3. Toggle recording on to keep writing points while the pointer moves.
-4. Use the interval field to control how frequently points are sampled.
+2. Click the recording pad once to start recording.
+3. Move the pointer over the pad. Higher positions create higher values.
+4. Click the recording pad again to stop recording.
+5. Use the interval field to control how frequently points are sampled.
 
 When targeting `actions pos`, the editor also writes a matching `SS` command. When targeting `SS`, it also updates the standard `actions` fallback.
 

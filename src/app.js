@@ -65,7 +65,6 @@ const state = {
   dirty: false,
   recorder: {
     enabled: false,
-    pointerDown: false,
     historyStarted: false,
     lastAt: -Infinity,
     lastValue: null
@@ -292,7 +291,6 @@ function beginRecorderSession() {
 }
 
 function resetRecorderSession() {
-  state.recorder.pointerDown = false;
   state.recorder.historyStarted = false;
   state.recorder.lastAt = -Infinity;
   state.recorder.lastValue = null;
@@ -413,6 +411,7 @@ function setRecorderEnabled(enabled) {
   resetRecorderSession();
   els.recordToggleBtn.textContent = enabled ? "录制开启" : "录制关闭";
   els.recordToggleBtn.classList.toggle("recording", enabled);
+  els.recordPad.classList.toggle("recording", enabled);
 }
 
 async function togglePlayback() {
@@ -1020,26 +1019,24 @@ els.deletePointBtn.addEventListener("click", deleteSelectedPoint);
 els.recordToggleBtn.addEventListener("click", () => {
   setRecorderEnabled(!state.recorder.enabled);
 });
-els.recordPad.addEventListener("pointerdown", (event) => {
-  state.recorder.pointerDown = true;
-  els.recordPad.setPointerCapture(event.pointerId);
+els.recordPad.addEventListener("click", (event) => {
   const value = valueFromRecordPadEvent(event);
   updateRecordPadCursor(value);
+  if (state.recorder.enabled) {
+    setRecorderEnabled(false);
+    return;
+  }
+  setRecorderEnabled(true);
   writeRecordValue(value, { force: true });
 });
 els.recordPad.addEventListener("pointermove", (event) => {
   const value = valueFromRecordPadEvent(event);
   updateRecordPadCursor(value);
-  if (!state.recorder.enabled && !state.recorder.pointerDown) return;
+  if (!state.recorder.enabled) return;
   writeRecordValue(value);
 });
-els.recordPad.addEventListener("pointerup", (event) => {
-  state.recorder.pointerDown = false;
-  resetRecorderSession();
-  els.recordPad.releasePointerCapture(event.pointerId);
-});
 els.recordPad.addEventListener("pointercancel", () => {
-  resetRecorderSession();
+  setRecorderEnabled(false);
 });
 els.stampButtons.forEach((button) => {
   button.addEventListener("click", () => {

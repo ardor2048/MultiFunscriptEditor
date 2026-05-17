@@ -319,6 +319,11 @@ video {
   user-select: none;
 }
 
+.record-pad.recording {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px rgba(217, 93, 57, 0.2);
+}
+
 .record-pad:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
