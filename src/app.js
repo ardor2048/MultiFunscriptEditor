@@ -29,7 +29,7 @@ const els = {
   dirtyStatus: document.querySelector("#dirtyStatus"),
   syncFromActionsBtn: document.querySelector("#syncFromActionsBtn"),
   syncFromMultiBtn: document.querySelector("#syncFromMultiBtn"),
-  recordTarget: document.querySelector("#recordTarget"),
+  recordTargets: document.querySelectorAll('input[name="recordTarget"]'),
   recordInterval: document.querySelector("#recordInterval"),
   recordToggleBtn: document.querySelector("#recordToggleBtn"),
   recordPad: document.querySelector("#recordPad"),
@@ -364,12 +364,40 @@ function upsertMultiCommand(at, action, qty) {
   state.selectedAt = time;
 }
 
+function getSelectedRecordTargets() {
+  const targets = Array.from(els.recordTargets)
+    .filter((input) => input.checked)
+    .map((input) => input.value);
+  return targets.length ? targets : ["actions"];
+}
+
+function writeTargetsAt(at, value) {
+  const targets = getSelectedRecordTargets();
+  const normalized = clampInt(value, 0, 100);
+  const qty = Math.round(normalized / 10);
+
+  if (targets.includes("actions")) {
+    upsertActionPoint(at, normalized);
+  }
+
+  for (const target of targets) {
+    if (target === "actions") {
+      upsertMultiCommand(at, "SS", qty);
+    } else {
+      upsertMultiCommand(at, target, qty);
+    }
+  }
+
+  if (targets.includes("SS") && !targets.includes("actions")) {
+    upsertActionPoint(at, qty * 10);
+  }
+}
+
 function writeRecordValue(value, options = {}) {
   const at = currentVideoMs();
-  const target = els.recordTarget.value;
   const interval = clampInt(els.recordInterval.value, 40, 1000);
   const normalized = clampInt(value, 0, 100);
-  const quantized = target === "actions" ? normalized : Math.round(normalized / 10);
+  const quantized = getSelectedRecordTargets().includes("actions") ? normalized : Math.round(normalized / 10);
   const force = Boolean(options.force);
 
   if (!force) {
@@ -378,15 +406,7 @@ function writeRecordValue(value, options = {}) {
   }
 
   beginRecorderSession();
-  if (target === "actions") {
-    upsertActionPoint(at, normalized);
-    upsertMultiCommand(at, "SS", Math.round(normalized / 10));
-  } else {
-    upsertMultiCommand(at, target, quantized);
-    if (target === "SS") {
-      upsertActionPoint(at, quantized * 10);
-    }
-  }
+  writeTargetsAt(at, normalized);
 
   state.recorder.lastAt = at;
   state.recorder.lastValue = quantized;
@@ -1043,16 +1063,7 @@ els.stampButtons.forEach((button) => {
     const value = clampInt(button.dataset.stamp, 0, 100);
     updateRecordPadCursor(value);
     mutate(() => {
-      const target = els.recordTarget.value;
-      if (target === "actions") {
-        upsertActionPoint(currentVideoMs(), value);
-        upsertMultiCommand(currentVideoMs(), "SS", Math.round(value / 10));
-      } else {
-        upsertMultiCommand(currentVideoMs(), target, Math.round(value / 10));
-        if (target === "SS") {
-          upsertActionPoint(currentVideoMs(), Math.round(value / 10) * 10);
-        }
-      }
+      writeTargetsAt(currentVideoMs(), value);
     });
   });
 });

@@ -248,17 +248,29 @@ video {
   font-variant-numeric: tabular-nums;
 }
 
-.quick-recorder {
+.editing-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
   margin-top: 12px;
-  padding: 12px;
+}
+
+.quick-recorder,
+.timeline-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fbfc;
 }
 
+.quick-recorder {
+  margin-top: 12px;
+  padding: 12px;
+  margin-top: 0;
+}
+
 .quick-recorder-head {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
   gap: 12px;
   align-items: flex-start;
   margin-bottom: 10px;
@@ -284,6 +296,30 @@ video {
   align-items: end;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.record-targets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.record-targets label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.record-targets input {
+  margin: 0;
 }
 
 .recorder-controls label {
@@ -382,7 +418,8 @@ video {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
-  margin: 16px 0 10px;
+  margin: 0 0 10px;
+  padding: 12px 12px 0;
 }
 
 #timeline {
@@ -392,6 +429,13 @@ video {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fbfcfe;
+}
+
+.timeline-panel #timeline {
+  border-radius: 0 0 8px 8px;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
 }
 
 .inspector {
@@ -491,6 +535,10 @@ video {
 
 @media (max-width: 980px) {
   .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .editing-grid {
     grid-template-columns: 1fr;
   }
 

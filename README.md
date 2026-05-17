@@ -9,6 +9,7 @@ Multi Funscript Editor is a browser-based editor for standard `.funscript` files
 - Edit standard `actions` points with `at` and `pos`.
 - Edit `multiAction.timeline` commands with `SS/ZD/JX/XZ/JR/DT/PS/YL/empty`.
 - Record action points with a large mouse/touch input pad.
+- Record multiple selected target tracks at the same timestamp.
 - Stamp quick values at `0/25/50/75/100`.
 - Convert standard `actions` to `multiAction` using `SS`.
 - Convert `multiAction.SS` back to standard `actions`.
@@ -84,13 +85,13 @@ http://localhost:8080
 
 Use the quick recording panel to add points while the video plays:
 
-1. Choose the target track, such as `actions pos`, `SS`, or `ZD`.
+1. Choose one or more target tracks, such as `actions`, `SS`, or `ZD`.
 2. Click the recording pad once to start recording.
 3. Move the pointer over the pad. Higher positions create higher values.
 4. Click the recording pad again to stop recording.
 5. Use the interval field to control how frequently points are sampled.
 
-When targeting `actions pos`, the editor also writes a matching `SS` command. When targeting `SS`, it also updates the standard `actions` fallback.
+When targeting `actions`, the editor also writes a matching `SS` command. When targeting `SS`, it also updates the standard `actions` fallback.
 
 ## Video Compatibility
 
