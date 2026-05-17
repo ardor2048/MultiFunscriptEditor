@@ -25,6 +25,12 @@ const els = {
   dirtyStatus: document.querySelector("#dirtyStatus"),
   syncFromActionsBtn: document.querySelector("#syncFromActionsBtn"),
   syncFromMultiBtn: document.querySelector("#syncFromMultiBtn"),
+  recordTarget: document.querySelector("#recordTarget"),
+  recordInterval: document.querySelector("#recordInterval"),
+  recordToggleBtn: document.querySelector("#recordToggleBtn"),
+  recordPad: document.querySelector("#recordPad"),
+  recordPadCursor: document.querySelector("#recordPadCursor"),
+  stampButtons: document.querySelectorAll("[data-stamp]"),
   currentTime: document.querySelector("#currentTime"),
   durationTime: document.querySelector("#durationTime"),
   scriptSummary: document.querySelector("#scriptSummary"),
@@ -52,7 +58,14 @@ const state = {
   durationMs: 600000,
   history: [],
   future: [],
-  dirty: false
+  dirty: false,
+  recorder: {
+    enabled: false,
+    pointerDown: false,
+    historyStarted: false,
+    lastAt: -Infinity,
+    lastValue: null
+  }
 };
 
 function createEmptyScript() {
@@ -177,6 +190,7 @@ function resetHistory() {
   state.history = [];
   state.future = [];
   state.dirty = false;
+  resetRecorderSession();
 }
 
 function mutate(mutator) {
@@ -186,6 +200,21 @@ function mutate(mutator) {
   mutator();
   state.dirty = true;
   renderAll();
+}
+
+function beginRecorderSession() {
+  if (state.recorder.historyStarted) return;
+  state.history.push(snapshot());
+  if (state.history.length > 100) state.history.shift();
+  state.future = [];
+  state.recorder.historyStarted = true;
+}
+
+function resetRecorderSession() {
+  state.recorder.pointerDown = false;
+  state.recorder.historyStarted = false;
+  state.recorder.lastAt = -Infinity;
+  state.recorder.lastValue = null;
 }
 
 function undo() {
@@ -218,6 +247,91 @@ function ensurePoint(at) {
   }
   sortScript();
   state.selectedAt = time;
+}
+
+function upsertActionPoint(at, pos) {
+  const time = clampInt(at, 0, Number.MAX_SAFE_INTEGER);
+  const value = clampInt(pos, 0, 100);
+  const existing = findAction(time);
+  if (existing) existing.pos = value;
+  else state.script.actions.push({ at: time, pos: value });
+  sortScript();
+  state.selectedAt = time;
+}
+
+function upsertMultiCommand(at, action, qty) {
+  const time = clampInt(at, 0, Number.MAX_SAFE_INTEGER);
+  const value = String(clampInt(qty, 0, 10));
+  let point = findMultiPoint(time);
+  if (!point) {
+    point = { at: time, commands: [] };
+    state.script.multiAction.timeline.push(point);
+  }
+
+  if (action === "empty") {
+    point.commands = [{ action: "empty", qty: "0" }];
+  } else {
+    point.commands = point.commands.filter((cmd) => cmd.action !== "empty");
+    const existing = point.commands.find((cmd) => cmd.action === action);
+    if (existing) existing.qty = value;
+    else point.commands.push({ action, qty: value });
+  }
+
+  if (!point.commands.length) {
+    point.commands.push({ action: "empty", qty: "0" });
+  }
+
+  sortScript();
+  state.selectedAt = time;
+}
+
+function writeRecordValue(value, options = {}) {
+  const at = currentVideoMs();
+  const target = els.recordTarget.value;
+  const interval = clampInt(els.recordInterval.value, 40, 1000);
+  const normalized = clampInt(value, 0, 100);
+  const quantized = target === "actions" ? normalized : Math.round(normalized / 10);
+  const force = Boolean(options.force);
+
+  if (!force) {
+    if (at - state.recorder.lastAt < interval) return;
+    if (state.recorder.lastValue != null && Math.abs(state.recorder.lastValue - quantized) < 1) return;
+  }
+
+  beginRecorderSession();
+  if (target === "actions") {
+    upsertActionPoint(at, normalized);
+    upsertMultiCommand(at, "SS", Math.round(normalized / 10));
+  } else {
+    upsertMultiCommand(at, target, quantized);
+    if (target === "SS") {
+      upsertActionPoint(at, quantized * 10);
+    }
+  }
+
+  state.recorder.lastAt = at;
+  state.recorder.lastValue = quantized;
+  state.dirty = true;
+  renderAll();
+}
+
+function valueFromRecordPadEvent(event) {
+  const rect = els.recordPad.getBoundingClientRect();
+  const y = Math.min(rect.height, Math.max(0, event.clientY - rect.top));
+  return Math.round(100 - (y / rect.height) * 100);
+}
+
+function updateRecordPadCursor(value) {
+  const normalized = clampInt(value, 0, 100);
+  els.recordPadCursor.style.top = `${100 - normalized}%`;
+  els.recordPad.setAttribute("aria-valuenow", String(normalized));
+}
+
+function setRecorderEnabled(enabled) {
+  state.recorder.enabled = enabled;
+  resetRecorderSession();
+  els.recordToggleBtn.textContent = enabled ? "录制开启" : "录制关闭";
+  els.recordToggleBtn.classList.toggle("recording", enabled);
 }
 
 function sortScript() {
@@ -558,6 +672,14 @@ function handleKeyboard(event) {
 
   if (isEditingText(event)) return;
 
+  if (/^[0-9]$/.test(event.key)) {
+    event.preventDefault();
+    const value = event.key === "0" ? 100 : Number(event.key) * 10;
+    updateRecordPadCursor(value);
+    writeRecordValue(value, { force: true });
+    return;
+  }
+
   if (event.key === "Delete" || event.key === "Backspace") {
     if (state.selectedAt != null) {
       event.preventDefault();
@@ -724,6 +846,48 @@ els.addCommandBtn.addEventListener("click", () => {
 });
 els.savePointBtn.addEventListener("click", saveSelectedPoint);
 els.deletePointBtn.addEventListener("click", deleteSelectedPoint);
+els.recordToggleBtn.addEventListener("click", () => {
+  setRecorderEnabled(!state.recorder.enabled);
+});
+els.recordPad.addEventListener("pointerdown", (event) => {
+  state.recorder.pointerDown = true;
+  els.recordPad.setPointerCapture(event.pointerId);
+  const value = valueFromRecordPadEvent(event);
+  updateRecordPadCursor(value);
+  writeRecordValue(value, { force: true });
+});
+els.recordPad.addEventListener("pointermove", (event) => {
+  const value = valueFromRecordPadEvent(event);
+  updateRecordPadCursor(value);
+  if (!state.recorder.enabled && !state.recorder.pointerDown) return;
+  writeRecordValue(value);
+});
+els.recordPad.addEventListener("pointerup", (event) => {
+  state.recorder.pointerDown = false;
+  resetRecorderSession();
+  els.recordPad.releasePointerCapture(event.pointerId);
+});
+els.recordPad.addEventListener("pointercancel", () => {
+  resetRecorderSession();
+});
+els.stampButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const value = clampInt(button.dataset.stamp, 0, 100);
+    updateRecordPadCursor(value);
+    mutate(() => {
+      const target = els.recordTarget.value;
+      if (target === "actions") {
+        upsertActionPoint(currentVideoMs(), value);
+        upsertMultiCommand(currentVideoMs(), "SS", Math.round(value / 10));
+      } else {
+        upsertMultiCommand(currentVideoMs(), target, Math.round(value / 10));
+        if (target === "SS") {
+          upsertActionPoint(currentVideoMs(), Math.round(value / 10) * 10);
+        }
+      }
+    });
+  });
+});
 
 els.modeButtons.forEach((button) => {
   button.addEventListener("click", () => {

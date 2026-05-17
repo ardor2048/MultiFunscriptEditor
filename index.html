@@ -52,6 +52,50 @@
             </div>
           </div>
 
+          <section class="quick-recorder">
+            <div class="quick-recorder-head">
+              <div>
+                <h2>快速打点</h2>
+                <p>按住并上下拖动录制，越高数值越大</p>
+              </div>
+              <div class="recorder-controls">
+                <label>
+                  目标
+                  <select id="recordTarget">
+                    <option value="actions">actions pos</option>
+                    <option value="SS">SS 伸缩</option>
+                    <option value="ZD">ZD 震动</option>
+                    <option value="JX">JX 夹吸</option>
+                    <option value="XZ">XZ 旋转</option>
+                    <option value="JR">JR 加热</option>
+                    <option value="DT">DT 点头</option>
+                    <option value="PS">PS 喷水</option>
+                    <option value="YL">YL 音量</option>
+                  </select>
+                </label>
+                <label>
+                  间隔(ms)
+                  <input id="recordInterval" type="number" min="40" max="1000" step="10" value="120" />
+                </label>
+                <button id="recordToggleBtn" type="button">录制关闭</button>
+              </div>
+            </div>
+            <div id="recordPad" class="record-pad" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+              <div class="record-pad-grid"></div>
+              <div id="recordPadCursor" class="record-pad-cursor"></div>
+              <div class="record-pad-label top">100</div>
+              <div class="record-pad-label middle">50</div>
+              <div class="record-pad-label bottom">0</div>
+            </div>
+            <div class="stamp-buttons">
+              <button data-stamp="0" type="button">0</button>
+              <button data-stamp="25" type="button">25</button>
+              <button data-stamp="50" type="button">50</button>
+              <button data-stamp="75" type="button">75</button>
+              <button data-stamp="100" type="button">100</button>
+            </div>
+          </section>
+
           <div class="timeline-header">
             <div>
               <h2>时间轴</h2>

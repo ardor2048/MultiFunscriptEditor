@@ -8,6 +8,8 @@ Multi Funscript Editor is a browser-based editor for standard `.funscript` files
 - Load and export `.funscript` JSON files.
 - Edit standard `actions` points with `at` and `pos`.
 - Edit `multiAction.timeline` commands with `SS/ZD/JX/XZ/JR/DT/PS/YL/empty`.
+- Record action points with a large mouse/touch input pad.
+- Stamp quick values at `0/25/50/75/100`.
 - Convert standard `actions` to `multiAction` using `SS`.
 - Convert `multiAction.SS` back to standard `actions`.
 - Undo and redo editing operations.
@@ -57,9 +59,22 @@ The app is dependency-free for the MVP, so `npm install` is not required.
 ## Shortcuts
 
 - `Space`: play or pause the video.
+- `1`-`9`: stamp values `10`-`90` at the current video time.
+- `0`: stamp value `100` at the current video time.
 - `Delete` / `Backspace`: delete the selected time point.
 - `Ctrl+Z` / `Cmd+Z`: undo.
 - `Ctrl+Y` / `Cmd+Shift+Z`: redo.
+
+## Quick Recording
+
+Use the quick recording panel to add points while the video plays:
+
+1. Choose the target track, such as `actions pos`, `SS`, or `ZD`.
+2. Click or drag on the recording pad. Higher positions create higher values.
+3. Toggle recording on to keep writing points while the pointer moves.
+4. Use the interval field to control how frequently points are sampled.
+
+When targeting `actions pos`, the editor also writes a matching `SS` command. When targeting `SS`, it also updates the standard `actions` fallback.
 
 ## Docker
 
