@@ -16,6 +16,7 @@ const els = {
   scriptInput: document.querySelector("#scriptInput"),
   video: document.querySelector("#video"),
   dropHint: document.querySelector("#dropHint"),
+  videoStatus: document.querySelector("#videoStatus"),
   playBtn: document.querySelector("#playBtn"),
   addPointBtn: document.querySelector("#addPointBtn"),
   newScriptBtn: document.querySelector("#newScriptBtn"),
@@ -65,7 +66,8 @@ const state = {
     historyStarted: false,
     lastAt: -Infinity,
     lastValue: null
-  }
+  },
+  videoObjectUrl: null
 };
 
 function createEmptyScript() {
@@ -142,6 +144,18 @@ function formatTime(ms) {
 
 function currentVideoMs() {
   return Math.floor((els.video.currentTime || 0) * 1000);
+}
+
+function setVideoStatus(message, type = "info") {
+  if (!message) {
+    els.videoStatus.textContent = "";
+    els.videoStatus.classList.add("hidden");
+    els.videoStatus.classList.remove("error");
+    return;
+  }
+  els.videoStatus.textContent = message;
+  els.videoStatus.classList.remove("hidden");
+  els.videoStatus.classList.toggle("error", type === "error");
 }
 
 function getScriptDuration() {
@@ -332,6 +346,23 @@ function setRecorderEnabled(enabled) {
   resetRecorderSession();
   els.recordToggleBtn.textContent = enabled ? "录制开启" : "录制关闭";
   els.recordToggleBtn.classList.toggle("recording", enabled);
+}
+
+async function togglePlayback() {
+  if (!els.video.currentSrc) {
+    setVideoStatus("请先打开视频文件", "error");
+    return;
+  }
+  if (els.video.paused) {
+    try {
+      await els.video.play();
+      setVideoStatus("");
+    } catch (error) {
+      setVideoStatus(`视频无法播放：${error.message}`, "error");
+    }
+  } else {
+    els.video.pause();
+  }
 }
 
 function sortScript() {
@@ -690,8 +721,7 @@ function handleKeyboard(event) {
 
   if (event.key === " ") {
     event.preventDefault();
-    if (els.video.paused) els.video.play();
-    else els.video.pause();
+    togglePlayback();
   }
 }
 
@@ -755,10 +785,26 @@ async function loadScriptFile(file) {
 }
 
 function loadVideoFile(file) {
+  if (state.videoObjectUrl) {
+    URL.revokeObjectURL(state.videoObjectUrl);
+  }
   const url = URL.createObjectURL(file);
+  state.videoObjectUrl = url;
+  els.video.pause();
+  els.video.removeAttribute("src");
+  els.video.load();
   els.video.src = url;
   els.dropHint.classList.add("hidden");
-  els.video.addEventListener("loadedmetadata", renderAll, { once: true });
+  setVideoStatus(`正在加载视频：${file.name}`);
+  els.video.load();
+  els.video.addEventListener("loadedmetadata", () => {
+    setVideoStatus(`已加载：${file.name}`);
+    renderAll();
+  }, { once: true });
+  els.video.addEventListener("loadeddata", () => {
+    setVideoStatus("");
+    renderAll();
+  }, { once: true });
 }
 
 function exportScript() {
@@ -830,10 +876,7 @@ els.newScriptBtn.addEventListener("click", () => {
 els.undoBtn.addEventListener("click", undo);
 els.redoBtn.addEventListener("click", redo);
 els.exportBtn.addEventListener("click", exportScript);
-els.playBtn.addEventListener("click", () => {
-  if (els.video.paused) els.video.play();
-  else els.video.pause();
-});
+els.playBtn.addEventListener("click", togglePlayback);
 els.addPointBtn.addEventListener("click", () => {
   mutate(() => {
     ensurePoint(currentVideoMs());
@@ -904,6 +947,20 @@ els.timeline.addEventListener("click", (event) => {
 
 els.video.addEventListener("timeupdate", renderAll);
 els.video.addEventListener("durationchange", renderAll);
+els.video.addEventListener("playing", () => {
+  setVideoStatus("");
+});
+els.video.addEventListener("error", () => {
+  const mediaError = els.video.error;
+  const code = mediaError?.code;
+  const messageByCode = {
+    1: "视频加载被中止",
+    2: "网络或本地读取失败",
+    3: "视频解码失败，可能是编码格式不受浏览器支持",
+    4: "视频格式不受浏览器支持"
+  };
+  setVideoStatus(messageByCode[code] || "视频无法加载", "error");
+});
 window.addEventListener("keydown", handleKeyboard);
 window.addEventListener("beforeunload", (event) => {
   if (!state.dirty) return;

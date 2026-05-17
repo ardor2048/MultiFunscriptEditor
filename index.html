@@ -36,8 +36,9 @@
       <main class="workspace">
         <section class="stage">
           <div class="video-wrap">
-            <video id="video" controls></video>
+            <video id="video" controls preload="metadata" playsinline></video>
             <div id="dropHint" class="drop-hint">打开视频和 .funscript 后开始编辑</div>
+            <div id="videoStatus" class="video-status hidden"></div>
           </div>
 
           <div class="transport">
