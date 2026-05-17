@@ -135,6 +135,26 @@ http://localhost:8080
 
 The Docker image includes FFmpeg and serves the app with the built-in Node server, so `转码预览` works without installing FFmpeg on the host.
 
+## Docker Compose
+
+Start:
+
+```bash
+docker compose up -d --build
+```
+
+Open:
+
+```text
+http://localhost:8080
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
 ## Validation
 
 To validate the provided sample file:

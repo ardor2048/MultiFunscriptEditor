@@ -1,0 +1,13 @@
+services:
+  multi-funscript-editor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: multi-funscript-editor:latest
+    container_name: multi-funscript-editor
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      MAX_UPLOAD_BYTES: "2147483648"
+    restart: unless-stopped
