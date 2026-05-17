@@ -158,9 +158,12 @@ button.danger {
   border-radius: 6px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
+  min-height: 260px;
 }
 
 video {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
@@ -175,6 +178,7 @@ video {
   place-items: center;
   color: #d8e1ea;
   pointer-events: none;
+  z-index: 2;
 }
 
 .drop-hint.hidden,
@@ -184,6 +188,7 @@ video {
 
 .video-status {
   position: absolute;
+  z-index: 3;
   left: 10px;
   right: 10px;
   bottom: 10px;
@@ -197,6 +202,13 @@ video {
 
 .video-status.error {
   background: rgba(166, 43, 43, 0.9);
+}
+
+.video-debug {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .transport {

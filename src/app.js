@@ -17,6 +17,7 @@ const els = {
   video: document.querySelector("#video"),
   dropHint: document.querySelector("#dropHint"),
   videoStatus: document.querySelector("#videoStatus"),
+  videoDebug: document.querySelector("#videoDebug"),
   playBtn: document.querySelector("#playBtn"),
   addPointBtn: document.querySelector("#addPointBtn"),
   newScriptBtn: document.querySelector("#newScriptBtn"),
@@ -156,6 +157,35 @@ function setVideoStatus(message, type = "info") {
   els.videoStatus.textContent = message;
   els.videoStatus.classList.remove("hidden");
   els.videoStatus.classList.toggle("error", type === "error");
+}
+
+function updateVideoDebug(extra = "") {
+  const video = els.video;
+  const readyLabels = {
+    0: "HAVE_NOTHING",
+    1: "HAVE_METADATA",
+    2: "HAVE_CURRENT_DATA",
+    3: "HAVE_FUTURE_DATA",
+    4: "HAVE_ENOUGH_DATA"
+  };
+  const networkLabels = {
+    0: "NETWORK_EMPTY",
+    1: "NETWORK_IDLE",
+    2: "NETWORK_LOADING",
+    3: "NETWORK_NO_SOURCE"
+  };
+  const width = video.videoWidth || 0;
+  const height = video.videoHeight || 0;
+  const duration = Number.isFinite(video.duration) ? formatTime(video.duration * 1000) : "--:--.---";
+  const time = formatTime((video.currentTime || 0) * 1000);
+  const parts = [
+    `ready=${readyLabels[video.readyState] || video.readyState}`,
+    `network=${networkLabels[video.networkState] || video.networkState}`,
+    `size=${width}x${height}`,
+    `time=${time}/${duration}`
+  ];
+  if (extra) parts.push(extra);
+  els.videoDebug.textContent = parts.join(" · ");
 }
 
 function getScriptDuration() {
@@ -763,6 +793,7 @@ function renderAll() {
   state.durationMs = getScriptDuration();
   els.currentTime.textContent = formatTime(currentVideoMs());
   els.durationTime.textContent = formatTime(state.durationMs);
+  updateVideoDebug();
   els.undoBtn.disabled = state.history.length === 0;
   els.redoBtn.disabled = state.future.length === 0;
   els.dirtyStatus.textContent = state.dirty ? "未保存" : "已保存";
@@ -791,19 +822,24 @@ function loadVideoFile(file) {
   const url = URL.createObjectURL(file);
   state.videoObjectUrl = url;
   els.video.pause();
-  els.video.removeAttribute("src");
-  els.video.load();
   els.video.src = url;
+  els.video.currentTime = 0;
   els.dropHint.classList.add("hidden");
   setVideoStatus(`正在加载视频：${file.name}`);
+  updateVideoDebug(`file=${file.name}`);
   els.video.load();
   els.video.addEventListener("loadedmetadata", () => {
     setVideoStatus(`已加载：${file.name}`);
+    updateVideoDebug(`file=${file.name}`);
     renderAll();
   }, { once: true });
   els.video.addEventListener("loadeddata", () => {
     setVideoStatus("");
+    updateVideoDebug(`file=${file.name}`);
     renderAll();
+  }, { once: true });
+  els.video.addEventListener("canplay", () => {
+    updateVideoDebug(`file=${file.name}`);
   }, { once: true });
 }
 
@@ -947,8 +983,12 @@ els.timeline.addEventListener("click", (event) => {
 
 els.video.addEventListener("timeupdate", renderAll);
 els.video.addEventListener("durationchange", renderAll);
+els.video.addEventListener("loadedmetadata", () => updateVideoDebug());
+els.video.addEventListener("loadeddata", () => updateVideoDebug());
+els.video.addEventListener("canplay", () => updateVideoDebug());
 els.video.addEventListener("playing", () => {
   setVideoStatus("");
+  updateVideoDebug();
 });
 els.video.addEventListener("error", () => {
   const mediaError = els.video.error;
@@ -960,6 +1000,7 @@ els.video.addEventListener("error", () => {
     4: "视频格式不受浏览器支持"
   };
   setVideoStatus(messageByCode[code] || "视频无法加载", "error");
+  updateVideoDebug(`error=${code || "unknown"}`);
 });
 window.addEventListener("keydown", handleKeyboard);
 window.addEventListener("beforeunload", (event) => {
