@@ -10,6 +10,8 @@ Multi Funscript Editor is a browser-based editor for standard `.funscript` files
 - Edit `multiAction.timeline` commands with `SS/ZD/JX/XZ/JR/DT/PS/YL/empty`.
 - Convert standard `actions` to `multiAction` using `SS`.
 - Convert `multiAction.SS` back to standard `actions`.
+- Undo and redo editing operations.
+- Warn before leaving with unsaved changes.
 - Validate time ordering, duplicate points, `pos`, `qty`, and unknown commands.
 - Deploy as a static Docker image with Nginx.
 
@@ -52,6 +54,13 @@ http://localhost:5173
 
 The app is dependency-free for the MVP, so `npm install` is not required.
 
+## Shortcuts
+
+- `Space`: play or pause the video.
+- `Delete` / `Backspace`: delete the selected time point.
+- `Ctrl+Z` / `Cmd+Z`: undo.
+- `Ctrl+Y` / `Cmd+Shift+Z`: redo.
+
 ## Docker
 
 Build:
@@ -85,4 +94,3 @@ By default the script checks:
 ```text
 /Users/mgm/Downloads/wlwpalyer/10min-sample.funscript
 ```
-

@@ -19,7 +19,10 @@ const els = {
   playBtn: document.querySelector("#playBtn"),
   addPointBtn: document.querySelector("#addPointBtn"),
   newScriptBtn: document.querySelector("#newScriptBtn"),
+  undoBtn: document.querySelector("#undoBtn"),
+  redoBtn: document.querySelector("#redoBtn"),
   exportBtn: document.querySelector("#exportBtn"),
+  dirtyStatus: document.querySelector("#dirtyStatus"),
   syncFromActionsBtn: document.querySelector("#syncFromActionsBtn"),
   syncFromMultiBtn: document.querySelector("#syncFromMultiBtn"),
   currentTime: document.querySelector("#currentTime"),
@@ -46,7 +49,10 @@ const state = {
   mode: "both",
   selectedAt: null,
   script: createEmptyScript(),
-  durationMs: 600000
+  durationMs: 600000,
+  history: [],
+  future: [],
+  dirty: false
 };
 
 function createEmptyScript() {
@@ -147,6 +153,57 @@ function collectTimes() {
   ])).sort((a, b) => a - b);
 }
 
+function cloneScript(script) {
+  return JSON.parse(JSON.stringify(script));
+}
+
+function snapshot() {
+  return {
+    fileName: state.fileName,
+    script: cloneScript(state.script),
+    selectedAt: state.selectedAt,
+    dirty: state.dirty
+  };
+}
+
+function restoreSnapshot(item) {
+  state.fileName = item.fileName || state.fileName;
+  state.script = cloneScript(item.script);
+  state.selectedAt = item.selectedAt;
+  state.dirty = item.dirty;
+}
+
+function resetHistory() {
+  state.history = [];
+  state.future = [];
+  state.dirty = false;
+}
+
+function mutate(mutator) {
+  state.history.push(snapshot());
+  if (state.history.length > 100) state.history.shift();
+  state.future = [];
+  mutator();
+  state.dirty = true;
+  renderAll();
+}
+
+function undo() {
+  const previous = state.history.pop();
+  if (!previous) return;
+  state.future.push(snapshot());
+  restoreSnapshot(previous);
+  renderAll();
+}
+
+function redo() {
+  const next = state.future.pop();
+  if (!next) return;
+  state.history.push(snapshot());
+  restoreSnapshot(next);
+  renderAll();
+}
+
 function ensurePoint(at) {
   const time = clampInt(at, 0, Number.MAX_SAFE_INTEGER);
   let action = findAction(time);
@@ -169,24 +226,26 @@ function sortScript() {
 }
 
 function syncMultiFromActions() {
-  state.script.multiAction.timeline = state.script.actions.map((point) => ({
-    at: point.at,
-    commands: [{ action: "SS", qty: String(Math.round(point.pos / 10)) }]
-  }));
-  if (!state.script.multiAction.version) state.script.multiAction.version = "2.0";
-  renderAll();
+  mutate(() => {
+    state.script.multiAction.timeline = state.script.actions.map((point) => ({
+      at: point.at,
+      commands: [{ action: "SS", qty: String(Math.round(point.pos / 10)) }]
+    }));
+    if (!state.script.multiAction.version) state.script.multiAction.version = "2.0";
+  });
 }
 
 function syncActionsFromMulti() {
-  state.script.actions = state.script.multiAction.timeline
-    .map((point) => {
-      const ss = point.commands.find((cmd) => cmd.action === "SS");
-      if (!ss) return null;
-      return { at: point.at, pos: clampInt(ss.qty, 0, 10) * 10 };
-    })
-    .filter(Boolean);
-  sortScript();
-  renderAll();
+  mutate(() => {
+    state.script.actions = state.script.multiAction.timeline
+      .map((point) => {
+        const ss = point.commands.find((cmd) => cmd.action === "SS");
+        if (!ss) return null;
+        return { at: point.at, pos: clampInt(ss.qty, 0, 10) * 10 };
+      })
+      .filter(Boolean);
+    sortScript();
+  });
 }
 
 function validateScript() {
@@ -447,30 +506,71 @@ function readEditorCommands() {
 
 function saveSelectedPoint() {
   if (state.selectedAt == null) return;
-  const oldAt = state.selectedAt;
-  const nextAt = clampInt(els.atInput.value, 0, Number.MAX_SAFE_INTEGER);
-  const pos = clampInt(els.posInput.value, 0, 100);
-  const commands = normalizeCommands(readEditorCommands());
+  mutate(() => {
+    const oldAt = state.selectedAt;
+    const nextAt = clampInt(els.atInput.value, 0, Number.MAX_SAFE_INTEGER);
+    const pos = clampInt(els.posInput.value, 0, 100);
+    const commands = normalizeCommands(readEditorCommands());
 
-  state.script.actions = state.script.actions.filter((point) => point.at !== oldAt && point.at !== nextAt);
-  state.script.actions.push({ at: nextAt, pos });
+    state.script.actions = state.script.actions.filter((point) => point.at !== oldAt && point.at !== nextAt);
+    state.script.actions.push({ at: nextAt, pos });
 
-  state.script.multiAction.timeline = state.script.multiAction.timeline
-    .filter((point) => point.at !== oldAt && point.at !== nextAt);
-  state.script.multiAction.timeline.push({ at: nextAt, commands });
+    state.script.multiAction.timeline = state.script.multiAction.timeline
+      .filter((point) => point.at !== oldAt && point.at !== nextAt);
+    state.script.multiAction.timeline.push({ at: nextAt, commands });
 
-  state.selectedAt = nextAt;
-  sortScript();
-  renderAll();
+    state.selectedAt = nextAt;
+    sortScript();
+  });
 }
 
 function deleteSelectedPoint() {
   if (state.selectedAt == null) return;
-  const at = state.selectedAt;
-  state.script.actions = state.script.actions.filter((point) => point.at !== at);
-  state.script.multiAction.timeline = state.script.multiAction.timeline.filter((point) => point.at !== at);
-  state.selectedAt = null;
-  renderAll();
+  mutate(() => {
+    const at = state.selectedAt;
+    state.script.actions = state.script.actions.filter((point) => point.at !== at);
+    state.script.multiAction.timeline = state.script.multiAction.timeline.filter((point) => point.at !== at);
+    state.selectedAt = null;
+  });
+}
+
+function isEditingText(event) {
+  const tagName = event.target?.tagName;
+  return tagName === "INPUT" || tagName === "SELECT" || tagName === "TEXTAREA" || event.target?.isContentEditable;
+}
+
+function handleKeyboard(event) {
+  const key = event.key.toLowerCase();
+  const hasModifier = event.metaKey || event.ctrlKey;
+
+  if (hasModifier && key === "z") {
+    event.preventDefault();
+    if (event.shiftKey) redo();
+    else undo();
+    return;
+  }
+
+  if (hasModifier && key === "y") {
+    event.preventDefault();
+    redo();
+    return;
+  }
+
+  if (isEditingText(event)) return;
+
+  if (event.key === "Delete" || event.key === "Backspace") {
+    if (state.selectedAt != null) {
+      event.preventDefault();
+      deleteSelectedPoint();
+    }
+    return;
+  }
+
+  if (event.key === " ") {
+    event.preventDefault();
+    if (els.video.paused) els.video.play();
+    else els.video.pause();
+  }
 }
 
 function renderValidation() {
@@ -511,6 +611,10 @@ function renderAll() {
   state.durationMs = getScriptDuration();
   els.currentTime.textContent = formatTime(currentVideoMs());
   els.durationTime.textContent = formatTime(state.durationMs);
+  els.undoBtn.disabled = state.history.length === 0;
+  els.redoBtn.disabled = state.future.length === 0;
+  els.dirtyStatus.textContent = state.dirty ? "未保存" : "已保存";
+  els.dirtyStatus.classList.toggle("dirty", state.dirty);
   renderSummary();
   renderEditor();
   renderValidation();
@@ -524,6 +628,7 @@ async function loadScriptFile(file) {
   state.fileName = file.name;
   state.script = normalizeScript(parsed);
   state.selectedAt = collectTimes()[0] ?? null;
+  resetHistory();
   renderAll();
 }
 
@@ -546,6 +651,8 @@ function exportScript() {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  state.dirty = false;
+  renderAll();
 }
 
 function selectNearestPoint(offsetX) {
@@ -567,7 +674,10 @@ function selectNearestPoint(offsetX) {
   }
   state.selectedAt = nearest;
   if (nearestDistance > state.durationMs * 0.015) {
-    ensurePoint(clampInt(targetAt, 0, Number.MAX_SAFE_INTEGER));
+    mutate(() => {
+      ensurePoint(clampInt(targetAt, 0, Number.MAX_SAFE_INTEGER));
+    });
+    return;
   }
   renderAll();
 }
@@ -588,20 +698,24 @@ els.scriptInput.addEventListener("change", async (event) => {
 });
 
 els.newScriptBtn.addEventListener("click", () => {
-  state.fileName = "untitled.funscript";
-  state.script = createEmptyScript();
-  state.selectedAt = null;
-  renderAll();
+  mutate(() => {
+    state.fileName = "untitled.funscript";
+    state.script = createEmptyScript();
+    state.selectedAt = null;
+  });
 });
 
+els.undoBtn.addEventListener("click", undo);
+els.redoBtn.addEventListener("click", redo);
 els.exportBtn.addEventListener("click", exportScript);
 els.playBtn.addEventListener("click", () => {
   if (els.video.paused) els.video.play();
   else els.video.pause();
 });
 els.addPointBtn.addEventListener("click", () => {
-  ensurePoint(currentVideoMs());
-  renderAll();
+  mutate(() => {
+    ensurePoint(currentVideoMs());
+  });
 });
 els.syncFromActionsBtn.addEventListener("click", syncMultiFromActions);
 els.syncFromMultiBtn.addEventListener("click", syncActionsFromMulti);
@@ -626,6 +740,12 @@ els.timeline.addEventListener("click", (event) => {
 
 els.video.addEventListener("timeupdate", renderAll);
 els.video.addEventListener("durationchange", renderAll);
+window.addEventListener("keydown", handleKeyboard);
+window.addEventListener("beforeunload", (event) => {
+  if (!state.dirty) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 window.addEventListener("resize", drawTimeline);
 
 renderAll();

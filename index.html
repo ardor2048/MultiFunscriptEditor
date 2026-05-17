@@ -26,7 +26,10 @@
             <input id="scriptInput" type="file" accept=".funscript,application/json" />
           </label>
           <button id="newScriptBtn" type="button">新建</button>
+          <button id="undoBtn" type="button" disabled>撤销</button>
+          <button id="redoBtn" type="button" disabled>重做</button>
           <button id="exportBtn" type="button">导出</button>
+          <span id="dirtyStatus" class="dirty-status">已保存</span>
         </div>
       </header>
 

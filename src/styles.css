@@ -51,6 +51,11 @@ button.active {
   border-color: var(--accent);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 button.danger {
   border-color: #f0c8c8;
   color: var(--danger);
@@ -115,6 +120,17 @@ button.danger {
 
 .file-button input {
   display: none;
+}
+
+.dirty-status {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.dirty-status.dirty {
+  color: var(--accent-2);
+  font-weight: 700;
 }
 
 .workspace {
