@@ -147,7 +147,7 @@ docker compose up -d --build
 Open:
 
 ```text
-http://localhost:8080
+http://localhost:8067
 ```
 
 Stop:
