@@ -159,6 +159,17 @@ function setVideoStatus(message, type = "info") {
   els.videoStatus.classList.toggle("error", type === "error");
 }
 
+function hasDecodedVideoFrame() {
+  return els.video.videoWidth > 0 && els.video.videoHeight > 0;
+}
+
+function checkVideoFrameAvailability() {
+  if (!els.video.currentSrc) return;
+  if (els.video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+  if (hasDecodedVideoFrame()) return;
+  setVideoStatus("视频已加载但没有解码出画面帧。请换用 H.264/AAC 的 MP4，或用支持该编码的浏览器打开。", "error");
+}
+
 function updateVideoDebug(extra = "") {
   const video = els.video;
   const readyLabels = {
@@ -184,6 +195,9 @@ function updateVideoDebug(extra = "") {
     `size=${width}x${height}`,
     `time=${time}/${duration}`
   ];
+  if (video.currentSrc && width === 0 && height === 0 && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    parts.push("videoFrames=0");
+  }
   if (extra) parts.push(extra);
   els.videoDebug.textContent = parts.join(" · ");
 }
@@ -834,11 +848,13 @@ function loadVideoFile(file) {
     renderAll();
   }, { once: true });
   els.video.addEventListener("loadeddata", () => {
-    setVideoStatus("");
+    if (hasDecodedVideoFrame()) setVideoStatus("");
+    else checkVideoFrameAvailability();
     updateVideoDebug(`file=${file.name}`);
     renderAll();
   }, { once: true });
   els.video.addEventListener("canplay", () => {
+    checkVideoFrameAvailability();
     updateVideoDebug(`file=${file.name}`);
   }, { once: true });
 }
@@ -983,11 +999,20 @@ els.timeline.addEventListener("click", (event) => {
 
 els.video.addEventListener("timeupdate", renderAll);
 els.video.addEventListener("durationchange", renderAll);
-els.video.addEventListener("loadedmetadata", () => updateVideoDebug());
-els.video.addEventListener("loadeddata", () => updateVideoDebug());
-els.video.addEventListener("canplay", () => updateVideoDebug());
+els.video.addEventListener("loadedmetadata", () => {
+  updateVideoDebug();
+});
+els.video.addEventListener("loadeddata", () => {
+  checkVideoFrameAvailability();
+  updateVideoDebug();
+});
+els.video.addEventListener("canplay", () => {
+  checkVideoFrameAvailability();
+  updateVideoDebug();
+});
 els.video.addEventListener("playing", () => {
-  setVideoStatus("");
+  if (hasDecodedVideoFrame()) setVideoStatus("");
+  else checkVideoFrameAvailability();
   updateVideoDebug();
 });
 els.video.addEventListener("error", () => {

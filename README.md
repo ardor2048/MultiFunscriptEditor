@@ -76,6 +76,27 @@ Use the quick recording panel to add points while the video plays:
 
 When targeting `actions pos`, the editor also writes a matching `SS` command. When targeting `SS`, it also updates the standard `actions` fallback.
 
+## Video Compatibility
+
+The editor uses the browser's native `<video>` element. If the diagnostic line shows `size=0x0` while the video is playing, the browser did not decode any video frames. This is usually a codec issue rather than an editor layout issue.
+
+Recommended test format:
+
+```text
+MP4 container + H.264 video + AAC audio
+```
+
+Common black-screen cases:
+
+- H.265 / HEVC video in a Chromium-based browser without HEVC support.
+- MKV files with codecs unsupported by the browser.
+- Audio-only files or damaged video tracks.
+
+Workarounds:
+
+- Open the editor in a browser that supports the video's codec.
+- Convert the video to H.264/AAC MP4 before editing.
+
 ## Docker
 
 Build:
